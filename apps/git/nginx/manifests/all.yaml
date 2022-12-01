@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: my-nginx
+data:
+  index.html: |
+    <html>
+    <h1>Welcome</h1>
+    </br>
+    <h1>Hi! This is a configmap Index file </h1>
+    </html
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: my-nginx
+  annotations:
+
+    # Our special annotation to tell AVP where the secrets are
+    avp.kubernetes.io/path: "secret/data/my-nginx"
+stringData:  
+  password: <password>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-nginx
+spec:
+  selector:
+    matchLabels:
+      app: nginx
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 8080
+        envFrom:
+        - secretRef:
+            name: my-nginx
+        volumeMounts:
+        - name: nginx-conf
+          mountPath: /usr/local/openresty/nginx/conf/
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: my-nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-nginx
+  namespace: argocd
+  labels:
+    app: nginx
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  externalTrafficPolicy: Local
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: nginx
+  type: LoadBalancer
